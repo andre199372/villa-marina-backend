@@ -341,13 +341,13 @@ app.put('/api/bookings/:id', async (req, res) => {
   }
 });
 
-// DELETE - Cancella prenotazione (soft delete)
+// DELETE - Cancella prenotazione (eliminazione permanente)
 app.delete('/api/bookings/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
     const result = await pool.query(
-      `UPDATE bookings SET status = 'cancelled' WHERE id = $1 RETURNING *`,
+      `DELETE FROM bookings WHERE id = $1 RETURNING *`,
       [id]
     );
     
@@ -355,9 +355,9 @@ app.delete('/api/bookings/:id', async (req, res) => {
       return res.status(404).json({ error: 'Prenotazione non trovata' });
     }
     
-    console.log('✅ Prenotazione cancellata:', id);
+    console.log('✅ Prenotazione eliminata permanentemente:', id);
     res.json({ 
-      message: 'Prenotazione cancellata con successo',
+      message: 'Prenotazione eliminata con successo',
       booking: result.rows[0]
     });
   } catch (error) {
