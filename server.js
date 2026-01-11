@@ -106,6 +106,31 @@ async function createAdminTable() {
   }
 }
 
+// Tabella contacts (da creare una volta)
+async function createContactsTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contacts (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        status VARCHAR(20) DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts(status);
+      CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
+    `);
+    
+    console.log('✅ Tabella contacts creata/verificata');
+  } catch (error) {
+    console.error('Errore creazione tabella contacts:', error);
+  }
+}
+
 // Login admin
 app.post('/api/admin/login', async (req, res) => {
   try {
@@ -387,6 +412,103 @@ app.get('/api/stats', async (req, res) => {
     res.status(500).json({ error: 'Errore recupero statistiche' });
   }
 });
+// ==================== CONTACTS ENDPOINTS ====================
+
+// GET - Tutti i messaggi contatti
+app.get('/api/contacts', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM contacts ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Errore GET /api/contacts:', error);
+    res.status(500).json({ error: 'Errore recupero messaggi' });
+  }
+});
+
+// POST - Crea nuovo messaggio contatto
+app.post('/api/contacts', async (req, res) => {
+  try {
+    const { name, email, message } = req.body;
+    
+    if (!name || !email || !message) {
+      return res.status(400).json({ 
+        error: 'Campi obbligatori mancanti',
+        required: ['name', 'email', 'message']
+      });
+    }
+    
+    const result = await pool.query(
+      `INSERT INTO contacts (name, email, message, status)
+       VALUES ($1, $2, $3, 'new')
+       RETURNING *`,
+      [name, email, message]
+    );
+    
+    console.log('✅ Nuovo messaggio contatto ricevuto:', result.rows[0].id);
+    
+    res.status(201).json({
+      message: 'Messaggio inviato con successo',
+      contact: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Errore POST /api/contacts:', error);
+    res.status(500).json({ error: 'Errore invio messaggio' });
+  }
+});
+
+// PUT - Aggiorna stato messaggio contatto
+app.put('/api/contacts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE contacts SET status = $1 WHERE id = $2 RETURNING *`,
+      [status, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Messaggio non trovato' });
+    }
+    
+    res.json({ 
+      message: 'Stato aggiornato', 
+      contact: result.rows[0] 
+    });
+  } catch (error) {
+    console.error('Errore PUT /api/contacts/:id:', error);
+    res.status(500).json({ error: 'Errore aggiornamento messaggio' });
+  }
+});
+
+// DELETE - Elimina messaggio contatto
+app.delete('/api/contacts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `DELETE FROM contacts WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Messaggio non trovato' });
+    }
+    
+    res.json({ 
+      message: 'Messaggio eliminato',
+      contact: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Errore DELETE /api/contacts/:id:', error);
+    res.status(500).json({ error: 'Errore cancellazione messaggio' });
+  }
+});
+
+
 
 // Gestione errori 404
 app.use((req, res) => {
@@ -410,7 +532,8 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await initDatabase();
-    await createAdminTable(); // Crea tabella admin
+    await createAdminTable();
+    await createContactsTable(); // Crea tabella admin
     
     app.listen(PORT, () => {
       console.log(`🚀 Server avviato su porta ${PORT}`);
