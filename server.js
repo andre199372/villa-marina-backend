@@ -135,33 +135,6 @@ app.post('/api/admin/login', async (req, res) => {
     res.status(500).json({ error: 'Errore durante il login' });
   }
 });
-// ==================== AUTENTICAZIONE ADMIN ====================
-app.post('/api/admin/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username e password richiesti' });
-    }
-    
-    // Credenziali hardcoded (cambia queste!)
-    const validUsername = 'admin';
-    const validPassword = 'villamarina2026';
-    
-    if (username === validUsername && password === validPassword) {
-      res.json({ 
-        success: true,
-        message: 'Login effettuato',
-        token: 'admin-authenticated'
-      });
-    } else {
-      res.status(401).json({ error: 'Credenziali non valide' });
-    }
-  } catch (error) {
-    console.error('Errore login:', error);
-    res.status(500).json({ error: 'Errore durante il login' });
-  }
-});
 // ==================== BOOKING ENDPOINTS ====================
 
 // Health check
