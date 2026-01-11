@@ -78,6 +78,66 @@ async function initDatabase() {
 
 // ==================== API ENDPOINTS ====================
 
+// ==================== AUTENTICAZIONE ADMIN ====================
+
+// Tabella admin users (da creare una volta)
+async function createAdminTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    // Crea admin di default (password: admin123)
+    // Hash generato con bcrypt per 'admin123'
+    await pool.query(`
+      INSERT INTO admin_users (username, password_hash)
+      VALUES ('admin', '$2a$10$8K1p/a0dL3LkzJ7dJ5uHxOZbrWpx8vqZJ1mY8TlBCJYY9QqJ7mKuO')
+      ON CONFLICT (username) DO NOTHING;
+    `);
+    
+    console.log('✅ Tabella admin_users creata');
+  } catch (error) {
+    console.error('Errore creazione tabella admin:', error);
+  }
+}
+
+// Login admin
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username e password richiesti' });
+    }
+    
+    // Per semplicità usiamo credenziali hardcoded
+    // In produzione dovresti usare bcrypt e database
+    const validUsername = process.env.ADMIN_USERNAME || 'admin';
+    const validPassword = process.env.ADMIN_PASSWORD || 'villamarina2026';
+    
+    if (username === validUsername && password === validPassword) {
+      // In produzione generare JWT token qui
+      res.json({ 
+        success: true,
+        message: 'Login effettuato',
+        token: 'admin-authenticated' // Placeholder - usare JWT in produzione
+      });
+    } else {
+      res.status(401).json({ error: 'Credenziali non valide' });
+    }
+  } catch (error) {
+    console.error('Errore login:', error);
+    res.status(500).json({ error: 'Errore durante il login' });
+  }
+});
+
+// ==================== BOOKING ENDPOINTS ====================
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
@@ -354,6 +414,7 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await initDatabase();
+    await createAdminTable(); // Crea tabella admin
     
     app.listen(PORT, () => {
       console.log(`🚀 Server avviato su porta ${PORT}`);
