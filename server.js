@@ -211,10 +211,10 @@ app.post('/api/bookings', async (req, res) => {
       });
     }
     
-    // Inserisci prenotazione
+    // Inserisci prenotazione in stato PENDING
     const result = await client.query(
       `INSERT INTO bookings (name, email, phone, guests, start_date, end_date, price, notes, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
        RETURNING *`,
       [name, email, phone, guests, startDate, endDate, price, notes || null]
     );
