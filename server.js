@@ -135,6 +135,7 @@ app.post('/api/admin/login', async (req, res) => {
     res.status(500).json({ error: 'Errore durante il login' });
   }
 });
+
 // ==================== BOOKING ENDPOINTS ====================
 
 // Health check
@@ -182,12 +183,13 @@ app.get('/api/bookings/range', async (req, res) => {
       return res.status(400).json({ error: 'Parametri startDate e endDate richiesti' });
     }
     
+    // FIX: Logica corretta - il checkout di una prenotazione libera il giorno per il checkin successivo
     const result = await pool.query(
       `SELECT * FROM bookings 
-       WHERE (start_date <= $1 AND end_date >= $2)
+       WHERE (start_date < $2 AND end_date > $1)
        AND status != 'cancelled'
        ORDER BY start_date ASC`,
-      [endDate, startDate]
+      [startDate, endDate]
     );
     
     res.json(result.rows);
@@ -206,14 +208,13 @@ app.get('/api/availability', async (req, res) => {
       return res.status(400).json({ error: 'Parametri startDate e endDate richiesti' });
     }
     
-    // Verifica sovrapposizioni
+    // FIX: Logica corretta per disponibilità
+    // Una prenotazione è in conflitto solo se:
+    // - inizia prima della fine della nuova prenotazione E
+    // - finisce dopo l'inizio della nuova prenotazione
     const result = await pool.query(
       `SELECT COUNT(*) as count FROM bookings 
-       WHERE (
-         (start_date <= $1 AND end_date >= $1) OR
-         (start_date <= $2 AND end_date >= $2) OR
-         (start_date >= $1 AND end_date <= $2)
-       )
+       WHERE (start_date < $2 AND end_date > $1)
        AND status != 'cancelled'`,
       [startDate, endDate]
     );
@@ -249,14 +250,10 @@ app.post('/api/bookings', async (req, res) => {
     // Inizia transazione
     await client.query('BEGIN');
     
-    // Verifica disponibilità con lock
+    // FIX: Verifica disponibilità con logica corretta
     const checkAvailability = await client.query(
       `SELECT id FROM bookings 
-       WHERE (
-         (start_date <= $1 AND end_date >= $1) OR
-         (start_date <= $2 AND end_date >= $2) OR
-         (start_date >= $1 AND end_date <= $2)
-       )
+       WHERE (start_date < $2 AND end_date > $1)
        AND status != 'cancelled'
        FOR UPDATE`,
       [startDate, endDate]
