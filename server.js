@@ -208,11 +208,11 @@ app.get('/api/bookings/range', async (req, res) => {
       return res.status(400).json({ error: 'Parametri startDate e endDate richiesti' });
     }
     
-    // FIX: Logica corretta - il checkout di una prenotazione libera il giorno per il checkin successivo
+    // Restituisce solo le prenotazioni CONFERMATE nel range
     const result = await pool.query(
       `SELECT * FROM bookings 
        WHERE (start_date < $2 AND end_date > $1)
-       AND status != 'cancelled'
+       AND status = 'confirmed'
        ORDER BY start_date ASC`,
       [startDate, endDate]
     );
@@ -233,14 +233,11 @@ app.get('/api/availability', async (req, res) => {
       return res.status(400).json({ error: 'Parametri startDate e endDate richiesti' });
     }
     
-    // FIX: Logica corretta per disponibilità
-    // Una prenotazione è in conflitto solo se:
-    // - inizia prima della fine della nuova prenotazione E
-    // - finisce dopo l'inizio della nuova prenotazione
+    // Verifica conflitti solo con prenotazioni CONFERMATE
     const result = await pool.query(
       `SELECT COUNT(*) as count FROM bookings 
        WHERE (start_date < $2 AND end_date > $1)
-       AND status != 'cancelled'`,
+       AND status = 'confirmed'`,
       [startDate, endDate]
     );
     
@@ -256,7 +253,6 @@ app.get('/api/availability', async (req, res) => {
     res.status(500).json({ error: 'Errore verifica disponibilità' });
   }
 });
-
 // POST - Crea nuova prenotazione
 app.post('/api/bookings', async (req, res) => {
   const client = await pool.connect();
@@ -272,14 +268,14 @@ app.post('/api/bookings', async (req, res) => {
       });
     }
     
-    // Inizia transazione
+   // Inizia transazione
     await client.query('BEGIN');
     
-    // FIX: Verifica disponibilità con logica corretta
+    // Verifica conflitti solo con prenotazioni CONFERMATE
     const checkAvailability = await client.query(
       `SELECT id FROM bookings 
        WHERE (start_date < $2 AND end_date > $1)
-       AND status != 'cancelled'
+       AND status = 'confirmed'
        FOR UPDATE`,
       [startDate, endDate]
     );
